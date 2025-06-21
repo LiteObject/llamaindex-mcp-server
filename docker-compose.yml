@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  llamaindex-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llamaindex-mcp-server
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"  # Expose port if needed for HTTP communication
+    stdin_open: true
+    tty: true
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  logs:
