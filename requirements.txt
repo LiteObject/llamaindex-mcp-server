@@ -39,7 +39,7 @@ joblib==1.4.2
 kiwisolver==1.4.8
 llama-cloud==0.0.9
 llama-index-agent-openai==0.2.8
-llama-index-cli==0.1.12
+llama-index-cli==0.4.1
 llama-index-core==0.10.55
 llama-index-embeddings-openai==0.1.10
 llama-index-indices-managed-llama-cloud==0.2.5
