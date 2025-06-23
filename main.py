@@ -4,17 +4,19 @@ LlamaIndex Documentation MCP Server
 Fetches and serves LlamaIndex documentation for VS Code Copilot integration
 """
 
-import asyncio
 import json
 import logging
 import os
-import sys
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import uvicorn
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +44,7 @@ class LlamaIndexDocServer:
     """Server for fetching and searching LlamaIndex documentation resources."""
 
     def __init__(self):
+        """Initialize the LlamaIndexDocServer with base URL, HTTP client, and resource cache."""
         self.base_url = "https://docs.llamaindex.ai"
         self.client = httpx.AsyncClient(timeout=30.0)
         self.cached_docs = {}
@@ -358,59 +361,46 @@ class MCPServer:
             }
 
 
-async def main():
-    """Main server loop for reading JSON-RPC requests and sending responses."""
-    server = MCPServer()
-    await server.initialize()
+mcp_server = MCPServer()
 
-    logger.info("LlamaIndex Documentation MCP Server started")
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Lifespan event handler for FastAPI app. Initializes the MCP server on startup."""
+    await mcp_server.initialize()
+    logger.info("MCP Server initialized and ready for HTTP requests.")
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/rpc")
+async def rpc_healthcheck():
+    """Healthcheck endpoint for /rpc (GET). Returns 200 OK."""
+    return JSONResponse(content={"status": "ok"})
+
+
+@app.post("/rpc")
+async def rpc_endpoint(request: Request):
+    """HTTP POST endpoint for MCP JSON-RPC requests. Accepts a JSON body and returns the server response."""
+    logger.info("Received POST /rpc request")
     try:
-        while True:
-            try:
-                # Read JSON-RPC request from stdin
-                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
-                if not line:
-                    break
+        req_json = await request.json()
+        logger.info("Request JSON: %s", req_json)
+        response = await mcp_server.handle_request(req_json)
+        logger.info("Response: %s", response)
+        return JSONResponse(content=response)
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.error("Invalid JSON in /rpc endpoint: %s", e)
+        return JSONResponse(content={"error": {"code": -32700, "message": f"Invalid JSON: {str(e)}"}}, status_code=400)
+    except httpx.HTTPError as e:
+        logger.error("HTTP error in /rpc endpoint: %s", e)
+        return JSONResponse(content={"error": {"code": -32000, "message": f"HTTP error: {str(e)}"}}, status_code=502)
+    except RuntimeError as e:
+        logger.error("Runtime error in /rpc endpoint: %s", e, exc_info=True)
+        return JSONResponse(content={"error": {"code": -32001, "message": f"Runtime error: {str(e)}"}}, status_code=500)
 
-                request = json.loads(line.strip())
-                response = await server.handle_request(request)
-
-                # Send response to stdout
-                print(json.dumps(response), flush=True)
-
-            except json.JSONDecodeError as e:
-                logger.error("Invalid JSON received: %s", e)
-                error_response = {
-                    "error": {
-                        "code": -32700,
-                        "message": "Parse error"
-                    }
-                }
-                print(json.dumps(error_response), flush=True)
-            except ValueError as e:
-                logger.error("Value error: %s", e)
-                error_response = {
-                    "error": {
-                        "code": -32602,
-                        "message": str(e)
-                    }
-                }
-                print(json.dumps(error_response), flush=True)
-            except (OSError, asyncio.CancelledError) as e:
-                logger.error("Unexpected error: %s", e)
-                error_response = {
-                    "error": {
-                        "code": -1,
-                        "message": str(e)
-                    }
-                }
-                print(json.dumps(error_response), flush=True)
-
-    except KeyboardInterrupt:
-        logger.info("Server shutting down...")
-    finally:
-        await server.doc_server.client.aclose()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    """Entry point for running the FastAPI server with Uvicorn."""
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
