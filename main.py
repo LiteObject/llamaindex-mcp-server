@@ -242,10 +242,13 @@ class MCPServer:
         logger.info("Received request: %s", request)
         method = request.get("method")
         params = request.get("params", {})
+        request_id = request.get("id")  # CRITICAL: Extract the request ID
 
         try:
+            result = None
+
             if method == "initialize":
-                return {
+                result = {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {
                         "resources": {"subscribe": True, "listChanged": True},
@@ -258,7 +261,7 @@ class MCPServer:
                 }
 
             elif method == "resources/list":
-                return {
+                result = {
                     "resources": [
                         {
                             "uri": r.uri,
@@ -276,7 +279,7 @@ class MCPServer:
                     raise ValueError("URI parameter is required")
 
                 content = await self.doc_server.fetch_resource_content(uri)
-                return {
+                result = {
                     "contents": [
                         {
                             "uri": uri,
@@ -287,7 +290,7 @@ class MCPServer:
                 }
 
             elif method == "tools/list":
-                return {
+                result = {
                     "tools": [
                         {
                             "name": tool.name,
@@ -307,7 +310,7 @@ class MCPServer:
                     limit = arguments.get("limit", 5)
                     results = await self.doc_server.search_documentation(query, limit)
 
-                    return {
+                    result = {
                         "content": [
                             {
                                 "type": "text",
@@ -320,7 +323,7 @@ class MCPServer:
                     uri = arguments.get("uri")
                     content = await self.doc_server.fetch_resource_content(uri)
 
-                    return {
+                    result = {
                         "content": [
                             {
                                 "type": "text",
@@ -335,9 +338,21 @@ class MCPServer:
             else:
                 raise ValueError(f"Unknown method: {method}")
 
+            # Return proper JSON-RPC 2.0 response
+            response = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": result
+            }
+
+            logger.info("Sending response: %s", response)
+            return response
+
         except ValueError as e:
             logger.error("Value error handling request: %s", e)
             return {
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {
                     "code": -32602,
                     "message": str(e)
@@ -346,6 +361,8 @@ class MCPServer:
         except KeyError as e:
             logger.error("Key error handling request: %s", e)
             return {
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {
                     "code": -32602,
                     "message": f"Missing key: {str(e)}"
@@ -354,8 +371,10 @@ class MCPServer:
         except (TypeError, RuntimeError, httpx.HTTPError) as e:
             logger.error("Error handling request: %s", e)
             return {
+                "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {
-                    "code": -1,
+                    "code": -32603,
                     "message": str(e)
                 }
             }
@@ -367,17 +386,25 @@ mcp_server = MCPServer()
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Lifespan event handler for FastAPI app. Initializes the MCP server on startup."""
+    logger.info("Starting MCP Server initialization...")
     await mcp_server.initialize()
     logger.info("MCP Server initialized and ready for HTTP requests.")
     yield
+    logger.info("MCP Server shutting down...")
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint for basic server status."""
+    return JSONResponse(content={"status": "MCP Server is running", "version": "1.0.0"})
 
 
 @app.get("/rpc")
 async def rpc_healthcheck():
     """Healthcheck endpoint for /rpc (GET). Returns 200 OK."""
-    return JSONResponse(content={"status": "ok"})
+    return JSONResponse(content={"status": "ok", "method": "GET /rpc healthcheck"})
 
 
 @app.post("/rpc")
@@ -387,18 +414,52 @@ async def rpc_endpoint(request: Request):
     try:
         req_json = await request.json()
         logger.info("Request JSON: %s", req_json)
+
+        # Validate basic JSON-RPC structure
+        if "method" not in req_json:
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": req_json.get("id"),
+                    "error": {"code": -32600, "message": "Invalid Request: missing method"}
+                },
+                status_code=400
+            )
+
         response = await mcp_server.handle_request(req_json)
         logger.info("Response: %s", response)
         return JSONResponse(content=response)
+
     except (json.JSONDecodeError, TypeError) as e:
         logger.error("Invalid JSON in /rpc endpoint: %s", e)
-        return JSONResponse(content={"error": {"code": -32700, "message": f"Invalid JSON: {str(e)}"}}, status_code=400)
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32700, "message": f"Parse error: {str(e)}"}
+            },
+            status_code=400
+        )
     except httpx.HTTPError as e:
         logger.error("HTTP error in /rpc endpoint: %s", e)
-        return JSONResponse(content={"error": {"code": -32000, "message": f"HTTP error: {str(e)}"}}, status_code=502)
-    except RuntimeError as e:
-        logger.error("Runtime error in /rpc endpoint: %s", e, exc_info=True)
-        return JSONResponse(content={"error": {"code": -32001, "message": f"Runtime error: {str(e)}"}}, status_code=500)
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32000, "message": f"HTTP error: {str(e)}"}
+            },
+            status_code=502
+        )
+    except Exception as e:
+        logger.error("Unexpected error in /rpc endpoint: %s", e, exc_info=True)
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32603, "message": f"Internal error: {str(e)}"}
+            },
+            status_code=500
+        )
 
 
 if __name__ == "__main__":

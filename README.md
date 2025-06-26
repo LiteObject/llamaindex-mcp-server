@@ -1,6 +1,6 @@
 # LlamaIndex Documentation MCP Server
 
-A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documentation for VS Code Copilot integration. This server runs in a Docker container and provides searchable access to LlamaIndex documentation.
+A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documentation for VS Code Copilot integration. This server now runs as an HTTP service (using FastAPI) and provides searchable access to LlamaIndex documentation.
 
 ## Features
 
@@ -10,6 +10,7 @@ A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documen
 - 🔧 VS Code Copilot integration
 - ⚡ Async HTTP client for fast fetching
 - 💾 Content caching for improved performance
+- 🌐 HTTP API for multi-client (multi-VS Code) support
 
 ## Prerequisites
 
@@ -21,65 +22,68 @@ A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documen
 
 1. **Clone or create the project structure:**
    ```bash
-   mkdir llamaindex-mcp-server
+   git clone <repo-url>
    cd llamaindex-mcp-server
    ```
 
-2. **Create all the necessary files** (main.py, requirements.txt, Dockerfile, etc.)
-
-3. **Run the setup script:**
+2. **Build and run with Docker Compose:**
    ```bash
-   chmod +x setup.sh
-   ./setup.sh
+   docker-compose up -d --build
    ```
+   - The service will be available at `http://localhost:8000`.
+   - The container will be named `mcp-server`.
+   - The Docker image will be named `liteobject/llamaindex-mcp-server`.
 
-4. **Configure VS Code:**
-   Add the MCP server configuration to your VS Code settings:
-   ```json
-   {
-     "mcpServers": {
-       "llamaindex-docs": {
-         "command": "docker",
-         "args": [
-           "run",
-           "--rm",
-           "-i",
-           "--name", "llamaindex-mcp-server",
-           "llamaindex-mcp-server:latest"
-         ],
-         "env": {
-           "PYTHONUNBUFFERED": "1"
-         }
-       }
-     }
-   }
-   ```
+### Healthcheck
 
-5. **Restart VS Code** to load the MCP server.
+The container exposes a healthcheck endpoint:
 
-## Manual Setup
-
-### Build the Docker Image
-
-```bash
-docker build -t llamaindex-mcp-server .
+```
+GET http://localhost:8000/rpc
+```
+Response:
+```json
+{"status": "ok", "method": "GET /rpc healthcheck"}
 ```
 
-### Run the Container
+### Example: JSON-RPC Request
 
-**Interactive mode (for testing):**
+Send a JSON-RPC 2.0 request to the server:
+
 ```bash
-docker run --rm -i llamaindex-mcp-server
+curl -X POST http://localhost:8000/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize"}'
 ```
 
-**With Docker Compose:**
-```bash
-docker-compose up -d
+Example response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "resources": {"subscribe": true, "listChanged": true},
+      "tools": {"listChanged": true}
+    },
+    "serverInfo": {
+      "name": "llamaindex-docs-server",
+      "version": "1.0.0"
+    }
+  }
+}
 ```
+
+## Environment Variables
+
+- `PYTHONUNBUFFERED=1`
+- `PYTHONPATH=/app`
+- `UVICORN_LOG_LEVEL=warning`
 
 ## Usage
 
-Once configured, the MCP server provides the following tools to VS Code Copilot:
+Once configured, the MCP server provides the following tools to VS Code Copilot via HTTP:
 
 ### Tools Available
 
@@ -102,59 +106,11 @@ The server automatically discovers and provides access to:
 
 ## Development
 
-### Local Development
+To run locally without Docker:
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Run locally:**
-   ```bash
-   python main.py
-   ```
-
-3. **Test with sample MCP requests:**
-   ```bash
-   echo '{"method": "initialize", "params": {}}' | python main.py
-   ```
-
-### Docker Development
-
-**Build and test:**
 ```bash
-docker build -t llamaindex-mcp-server .
-docker run --rm -it llamaindex-mcp-server
-```
-
-**Debug container:**
-```bash
-docker run --rm -it llamaindex-mcp-server /bin/bash
-```
-
-## Configuration
-
-### Environment Variables
-
-- `PYTHONUNBUFFERED=1` - Ensures Python output is not buffered
-- Custom timeout and retry settings can be added to the HTTP client
-
-### VS Code MCP Configuration
-
-The server can be configured in VS Code's settings.json:
-
-```json
-{
-  "mcpServers": {
-    "llamaindex-docs": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", "llamaindex-mcp-server:latest"],
-      "env": {
-        "PYTHONUNBUFFERED": "1"
-      }
-    }
-  }
-}
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Troubleshooting
@@ -164,7 +120,7 @@ The server can be configured in VS Code's settings.json:
 1. **Container fails to start:**
    - Check Docker is running
    - Verify the image was built successfully
-   - Check container logs: `docker logs llamaindex-mcp-server`
+   - Check container logs: `docker logs mcp-server`
 
 2. **VS Code doesn't recognize the MCP server:**
    - Ensure the configuration is in the correct settings.json
@@ -176,33 +132,14 @@ The server can be configured in VS Code's settings.json:
    - Verify LlamaIndex docs are accessible
    - Check container logs for HTTP errors
 
-### Debugging
-
-**View container logs:**
-```bash
-docker logs llamaindex-mcp-server
-```
-
-**Execute commands in running container:**
-```bash
-docker exec -it llamaindex-mcp-server /bin/bash
-```
-
-**Test HTTP connectivity:**
-```bash
-docker run --rm llamaindex-mcp-server python -c "import httpx; print(httpx.get('https://docs.llamaindex.ai').status_code)"
-```
-
 ## Architecture
 
 ```
 VS Code Copilot
       ↓
-   MCP Protocol
+   MCP Protocol (HTTP)
       ↓
-  Docker Container
-      ↓
-  Python MCP Server
+  Docker Container / Python MCP Server (FastAPI)
       ↓
   LlamaIndex Docs API
 ```
