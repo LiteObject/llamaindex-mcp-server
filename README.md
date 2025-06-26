@@ -169,3 +169,33 @@ For issues related to:
 - **VS Code Integration**: Check VS Code Copilot documentation
 - **LlamaIndex Docs**: Check LlamaIndex documentation
 - **This Server**: Create an issue in the repository
+
+## VS Code Integration
+
+To use this MCP server with VS Code Copilot or compatible extensions, add the following to your VS Code `settings.json`:
+
+```jsonc
+"mcp": {
+  "inputs": [],
+  "servers": {
+    "llamaindex-docs": {
+      "type": "http",
+      "url": "http://localhost:8000/rpc"
+    }
+  }
+}
+```
+
+- Make sure your server is running and accessible at the specified URL.
+- You can add this block to your global or workspace `settings.json`.
+
+## MCP Server Types
+
+When configuring MCP servers in VS Code or other clients, you may encounter different server types. Here is a brief explanation of each:
+
+- **http**: Communicates with the MCP server over HTTP(S) using a URL (e.g., `http://localhost:8000/rpc`). This is the type used by this project.
+- **stdio**: Communicates with the MCP server via standard input/output (stdin/stdout). Typically used for local processes started by the client.
+- **sse**: Uses Server-Sent Events (SSE) over HTTP for streaming responses from the server. Useful for real-time updates or long-running operations.
+- **websocket**: Uses a WebSocket connection for bidirectional communication between client and server.
+
+For this server, use the `http` type as shown in the VS Code Integration section above.
