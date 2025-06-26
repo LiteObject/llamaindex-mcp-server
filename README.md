@@ -12,6 +12,22 @@ A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documen
 - 💾 Content caching for improved performance
 - 🌐 HTTP API for multi-client (multi-VS Code) support
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Healthcheck](#healthcheck)
+- [VS Code Integration](#vs-code-integration)
+- [MCP Server Types](#mcp-server-types)
+- [API Usage](#api-usage)
+- [Environment Variables](#environment-variables)
+- [Local Development](#local-development)
+- [Troubleshooting](#troubleshooting)
+- [Architecture](#architecture)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
+
 ## Prerequisites
 
 - Docker and Docker Compose installed
@@ -34,7 +50,7 @@ A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documen
    - The container will be named `mcp-server`.
    - The Docker image will be named `liteobject/llamaindex-mcp-server`.
 
-### Healthcheck
+## Healthcheck
 
 The container exposes a healthcheck endpoint:
 
@@ -45,6 +61,56 @@ Response:
 ```json
 {"status": "ok", "method": "GET /rpc healthcheck"}
 ```
+
+## VS Code Integration
+
+To use this MCP server with VS Code Copilot or compatible extensions, add the following to your VS Code `settings.json`:
+
+```jsonc
+"mcp": {
+  "inputs": [],
+  "servers": {
+    "llamaindex-docs": {
+      "type": "http",
+      "url": "http://localhost:8000/rpc"
+    }
+  }
+}
+```
+
+- Make sure your server is running and accessible at the specified URL.
+- You can add this block to your global or workspace `settings.json`.
+
+## MCP Server Types
+
+When configuring MCP servers in VS Code or other clients, you may encounter different server types. Here is a brief explanation of each:
+
+- **http**: Communicates with the MCP server over HTTP(S) using a URL (e.g., `http://localhost:8000/rpc`). This is the type used by this project.
+- **stdio**: Communicates with the MCP server via standard input/output (stdin/stdout). Typically used for local processes started by the client.
+- **sse**: Uses Server-Sent Events (SSE) over HTTP for streaming responses from the server. Useful for real-time updates or long-running operations.
+- **websocket**: Uses a WebSocket connection for bidirectional communication between client and server.
+
+For this server, use the `http` type as shown in the VS Code Integration section above.
+
+## API Usage
+
+Once configured, the MCP server provides the following tools to VS Code Copilot via HTTP:
+
+### Tools Available
+
+- **search_llamaindex_docs**: Search through LlamaIndex documentation
+  - Parameters: `query` (string), `limit` (integer, optional)
+- **get_llamaindex_resource**: Get full content of a specific documentation resource
+  - Parameters: `uri` (string)
+
+### Resources Available
+
+The server automatically discovers and provides access to:
+- Getting Started guides
+- Module guides (loading, indexing, querying)
+- Agent documentation
+- API references
+- Examples and tutorials
 
 ### Example: JSON-RPC Request
 
@@ -81,30 +147,7 @@ Example response:
 - `PYTHONPATH=/app`
 - `UVICORN_LOG_LEVEL=warning`
 
-## Usage
-
-Once configured, the MCP server provides the following tools to VS Code Copilot via HTTP:
-
-### Tools Available
-
-1. **search_llamaindex_docs**
-   - Search through LlamaIndex documentation
-   - Parameters: `query` (string), `limit` (integer, optional)
-
-2. **get_llamaindex_resource**
-   - Get full content of a specific documentation resource
-   - Parameters: `uri` (string)
-
-### Resources Available
-
-The server automatically discovers and provides access to:
-- Getting Started guides
-- Module guides (loading, indexing, querying)
-- Agent documentation
-- API references
-- Examples and tutorials
-
-## Development
+## Local Development
 
 To run locally without Docker:
 
@@ -169,33 +212,3 @@ For issues related to:
 - **VS Code Integration**: Check VS Code Copilot documentation
 - **LlamaIndex Docs**: Check LlamaIndex documentation
 - **This Server**: Create an issue in the repository
-
-## VS Code Integration
-
-To use this MCP server with VS Code Copilot or compatible extensions, add the following to your VS Code `settings.json`:
-
-```jsonc
-"mcp": {
-  "inputs": [],
-  "servers": {
-    "llamaindex-docs": {
-      "type": "http",
-      "url": "http://localhost:8000/rpc"
-    }
-  }
-}
-```
-
-- Make sure your server is running and accessible at the specified URL.
-- You can add this block to your global or workspace `settings.json`.
-
-## MCP Server Types
-
-When configuring MCP servers in VS Code or other clients, you may encounter different server types. Here is a brief explanation of each:
-
-- **http**: Communicates with the MCP server over HTTP(S) using a URL (e.g., `http://localhost:8000/rpc`). This is the type used by this project.
-- **stdio**: Communicates with the MCP server via standard input/output (stdin/stdout). Typically used for local processes started by the client.
-- **sse**: Uses Server-Sent Events (SSE) over HTTP for streaming responses from the server. Useful for real-time updates or long-running operations.
-- **websocket**: Uses a WebSocket connection for bidirectional communication between client and server.
-
-For this server, use the `http` type as shown in the VS Code Integration section above.
