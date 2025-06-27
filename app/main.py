@@ -5,11 +5,12 @@ Fetches and serves LlamaIndex documentation for VS Code Copilot integration
 """
 
 import logging
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from .middleware import log_requests
+from fastapi import FastAPI
+
 from .mcp_server import MCPServer
+from .middleware import log_requests
 from .routes import router as api_router
 
 # Configure logging
