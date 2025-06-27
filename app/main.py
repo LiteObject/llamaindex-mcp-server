@@ -38,6 +38,5 @@ app.middleware("http")(log_requests)
 app.include_router(api_router)
 
 if __name__ == "__main__":
-    """Entry point for running the FastAPI server with Uvicorn."""
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
