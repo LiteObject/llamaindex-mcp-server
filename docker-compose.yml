@@ -13,6 +13,7 @@ services:
       - UVICORN_LOG_LEVEL=warning
     volumes:
       - ./logs:/app/logs
+      - ./app:/app/app
     ports:
       - "8000:8000"
     networks:

@@ -28,7 +28,6 @@ async def lifespan(_app: FastAPI):
     yield
     logger.info("MCP Server shutting down...")
 
-
 app = FastAPI(lifespan=lifespan)
 """FastAPI application instance for the MCP server."""
 
@@ -38,8 +37,7 @@ app.middleware("http")(log_requests)
 # Register API routes
 app.include_router(api_router)
 
-
 if __name__ == "__main__":
     """Entry point for running the FastAPI server with Uvicorn."""
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
