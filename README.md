@@ -24,6 +24,7 @@ A Model Context Protocol (MCP) server that fetches and serves LlamaIndex documen
 - [Local Development](#local-development)
 - [Troubleshooting](#troubleshooting)
 - [Architecture](#architecture)
+- [MCP Protocol Guide](#mcp-protocol-guide)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -153,7 +154,7 @@ To run locally without Docker:
 
 ```bash
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Troubleshooting
@@ -187,27 +188,9 @@ VS Code Copilot
   LlamaIndex Docs API
 ```
 
-### Sequence Diagram
+## MCP Protocol Guide
 
-```mermaid
-sequenceDiagram
-    participant Host as Host (VS Code)
-    participant Client as MCP Client (Extension)
-    participant Server as MCP Server (FastAPI)
-
-    Host->>Client: User requests documentation/search
-    Client->>Server: POST /rpc (JSON-RPC: initialize, tools/list, etc.)
-    Server-->>Client: JSON-RPC response (tools, resources, etc.)
-    Client->>Server: POST /rpc (JSON-RPC: tools/call with arguments)
-    Server-->>Client: JSON-RPC response (tool execution result)
-    Client-->>Host: Display result to user
-```
-
-The server implements the MCP protocol specification and provides:
-- Resource management (documentation pages)
-- Tool execution (search and fetch operations)
-- Content caching and optimization
-- Error handling and logging
+For a comprehensive guide to the Model Context Protocol (MCP), including protocol architecture, message formats, implementation patterns, and best practices, see [MCP_GUIDE.md](./MCP_GUIDE.md).
 
 ## Contributing
 

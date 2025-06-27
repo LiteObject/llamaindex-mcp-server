@@ -66,6 +66,22 @@ MCP follows a client-server architecture where AI models (or applications using 
 └─────────────────┘                    └─────────────────┘
 ```
 
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Host as Host (VS Code)
+    participant Client as MCP Client (Extension)
+    participant Server as MCP Server (FastAPI)
+
+    Host->>Client: User requests documentation/search
+    Client->>Server: POST /rpc (JSON-RPC: initialize, tools/list, etc.)
+    Server-->>Client: JSON-RPC response (tools, resources, etc.)
+    Client->>Server: POST /rpc (JSON-RPC: tools/call with arguments)
+    Server-->>Client: JSON-RPC response (tool execution result)
+    Client-->>Host: Display result to user
+```
+
 ### Communication Flow
 
 1. **Discovery**: Client discovers available MCP servers and their capabilities
