@@ -1,3 +1,6 @@
+"""
+Middleware module for logging HTTP requests and responses in the MCP server.
+"""
 import logging
 import json
 from fastapi import Request

@@ -1,25 +1,42 @@
-from typing import Any, Dict, List
+"""
+LlamaIndexDocServer module for fetching and searching LlamaIndex documentation resources.
+"""
+
 import logging
+from typing import Any, Dict, List
+from urllib.parse import urljoin
+
 import httpx
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+
 from .models import MCPResource
 
 logger = logging.getLogger(__name__)
 
 
 class LlamaIndexDocServer:
-    """Server for fetching and searching LlamaIndex documentation resources."""
+    """
+    Server for fetching and searching LlamaIndex documentation resources.
+    Handles resource discovery, content fetching, and search with caching.
+    """
 
     def __init__(self):
+        """
+        Initialize the LlamaIndexDocServer with base URL, HTTP client, and resource/content caches.
+        """
         self.base_url = "https://docs.llamaindex.ai"
         self.client = httpx.AsyncClient(timeout=30.0)
         self.cached_docs = {}
         self.resources = []
 
-    async def initialize(self):
+    async def initialize(self, resource_limit: int = 50):
+        """
+        Initialize the server and fetch the initial documentation structure.
+        Args:
+            resource_limit (int): Maximum number of resources to fetch (default: 50).
+        """
         try:
-            await self._fetch_doc_structure()
+            await self._fetch_doc_structure(resource_limit=resource_limit)
             logger.info(
                 "Initialized with %d documentation resources", len(self.resources))
         except httpx.HTTPStatusError as e:
@@ -29,7 +46,12 @@ class LlamaIndexDocServer:
         except (AttributeError, TypeError, ValueError) as e:
             logger.error("Unexpected error during initialization: %s", e)
 
-    async def _fetch_doc_structure(self):
+    async def _fetch_doc_structure(self, resource_limit: int = 50):
+        """
+        Fetch the documentation structure from LlamaIndex docs and populate resources.
+        Args:
+            resource_limit (int): Maximum number of resources to fetch (default: 50).
+        """
         try:
             response = await self.client.get(f"{self.base_url}/en/stable/")
             response.raise_for_status()
@@ -45,7 +67,7 @@ class LlamaIndexDocServer:
                         if title and len(title) > 3:
                             doc_links.append((full_url, title))
             seen_urls = set()
-            for url, title in doc_links[:50]:
+            for url, title in doc_links[:resource_limit]:
                 if url not in seen_urls:
                     seen_urls.add(url)
                     resource = MCPResource(
@@ -63,6 +85,9 @@ class LlamaIndexDocServer:
             self._add_default_resources()
 
     def _add_default_resources(self):
+        """
+        Add default LlamaIndex documentation resources if fetching fails.
+        """
         default_docs = [
             ("/en/stable/getting_started/starter_example.html", "Getting Started"),
             ("/en/stable/module_guides/loading/", "Data Loading"),
@@ -80,6 +105,9 @@ class LlamaIndexDocServer:
             self.resources.append(resource)
 
     async def fetch_resource_content(self, uri: str) -> str:
+        """
+        Fetch content for a specific documentation resource by URI, using cache if available.
+        """
         if uri in self.cached_docs:
             return self.cached_docs[uri]
         try:
@@ -108,6 +136,15 @@ class LlamaIndexDocServer:
             return f"Unexpected error fetching content: {str(e)}"
 
     async def search_documentation(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Search through cached documentation for a query string and return relevant snippets.
+
+        Args:
+            query: The search query string.
+            limit: Maximum number of results to return.
+        Returns:
+            List of dictionaries with uri, title, and snippet for each match.
+        """
         results = []
         query_lower = query.lower()
         for resource in self.resources:

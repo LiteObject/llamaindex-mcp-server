@@ -1,16 +1,27 @@
-from typing import Any, Dict
+"""
+MCP server module for handling LlamaIndex documentation requests and tool invocations.
+"""
+
+import json
 import logging
+from typing import Any, Dict
+
 from .llamaindex_doc_server import LlamaIndexDocServer
 from .models import MCPTool
-import json
 
 logger = logging.getLogger(__name__)
 
 
 class MCPServer:
-    """Main server class for handling MCP requests and documentation tools."""
+    """
+    Main server class for handling MCP requests and documentation tools.
+    Provides endpoints for initialization, resource listing/reading, and tool execution.
+    """
 
     def __init__(self):
+        """
+        Initialize the MCP server with documentation server and available tools.
+        """
         self.doc_server = LlamaIndexDocServer()
         self.tools = [
             MCPTool(
@@ -48,10 +59,25 @@ class MCPServer:
             )
         ]
 
-    async def initialize(self):
-        await self.doc_server.initialize()
+    async def initialize(self, resource_limit: int = 50):
+        """
+        Initialize the documentation server and load resources.
+
+        Args:
+            resource_limit (int): Maximum number of resources to fetch (default: 50).
+        """
+        await self.doc_server.initialize(resource_limit)
 
     async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle incoming MCP requests and return appropriate responses.
+
+        Args:
+            request: MCP request dictionary containing method, params, and id
+
+        Returns:
+            MCP response dictionary with result or error
+        """
         logger.info("Received request: %s", request)
         method = request.get("method")
         params = request.get("params", {})
@@ -85,7 +111,14 @@ class MCPServer:
             elif method == "resources/read":
                 uri = params.get("uri")
                 if not uri:
-                    raise ValueError("URI parameter is required")
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32602,
+                            "message": "Invalid params: URI parameter is required"
+                        }
+                    }
                 content = await self.doc_server.fetch_resource_content(uri)
                 result = {
                     "contents": [
@@ -134,9 +167,23 @@ class MCPServer:
                         ]
                     }
                 else:
-                    raise ValueError(f"Unknown tool: {tool_name}")
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32601,
+                            "message": f"Method not found: Unknown tool {tool_name}"
+                        }
+                    }
             else:
-                raise ValueError(f"Unknown method: {method}")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32601,
+                        "message": f"Method not found: {method}"
+                    }
+                }
             response = {
                 "jsonrpc": "2.0",
                 "id": request_id,
