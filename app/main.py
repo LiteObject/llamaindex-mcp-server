@@ -13,9 +13,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.requests import Request as StarletteRequest
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
 
-from .middleware import log_requests
+from .middleware import log_requests, RpcExceptionMiddleware
 from .routes import router as api_router
 from .routes import mcp_server  # Import the shared instance
 
@@ -36,54 +35,6 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 """FastAPI application instance for the MCP server."""
-
-
-class RpcExceptionMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to catch all exceptions for /rpc requests and return a JSON-RPC error response.
-    Ensures that any unhandled exception or 500 error is returned as a JSON-RPC error object.
-    Also ensures that HTTP method not allowed (405) is returned as a proper HTTP error for /rpc.
-    """
-
-    async def dispatch(self, request, call_next):
-        """
-        Intercept /rpc requests, catch exceptions, and return JSON-RPC error responses.
-        Args:
-            request: The incoming Starlette/FastAPI request.
-            call_next: The next middleware or route handler.
-        Returns:
-            JSONResponse: JSON-RPC error response or the original response.
-        """
-        if request.url.path == "/rpc":
-            # If method is not POST or GET, return 405 Method Not Allowed immediately
-            if request.method not in ("POST", "GET"):
-                return JSONResponse(
-                    status_code=405,
-                    content={"detail": "Method Not Allowed"},
-                )
-            try:
-                response = await call_next(request)
-                # If response is 500, replace with JSON-RPC error
-                if response.status_code == 500:
-                    return JSONResponse(
-                        status_code=500,
-                        content={
-                            "jsonrpc": "2.0",
-                            "id": None,
-                            "error": {"code": -32603, "message": "Internal error"}
-                        },
-                    )
-                return response
-            except (StarletteHTTPException, RequestValidationError) as exc:
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "jsonrpc": "2.0",
-                        "id": None,
-                        "error": {"code": -32603, "message": f"Internal error: {str(exc)}"}
-                    },
-                )
-        return await call_next(request)
 
 
 # Register logging middleware
